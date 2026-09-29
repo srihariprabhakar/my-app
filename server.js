@@ -7,16 +7,23 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-// PostgreSQL connection (via DATABASE_URL injected by App Platform)
+// Strip sslmode query params from a DO-managed DB URI (their certs are CA-signed
+// but node-postgres treats sslmode=require as verify-full). We supply our own SSL.
+function sanitizeUri(uri) {
+  if (!uri) return null;
+  const u = new URL(uri);
+  u.searchParams.delete('sslmode');
+  return u.toString();
+}
+
 let pool;
 if (process.env.DATABASE_URL) {
   pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: sanitizeUri(process.env.DATABASE_URL),
     ssl: { rejectUnauthorized: false },
   });
 }
 
-// Valkey/Redis connection (optional)
 let redis;
 if (process.env.REDIS_URL) {
   redis = new Redis(process.env.REDIS_URL, {
@@ -32,7 +39,6 @@ app.get('/', async (req, res) => {
   });
 });
 
-// Health endpoint that verifies DB connectivity
 app.get('/health', async (req, res) => {
   const checks = { postgres: 'not-configured', valkey: 'not-configured' };
 
@@ -58,7 +64,6 @@ app.get('/health', async (req, res) => {
   res.status(healthy ? 200 : 503).json({ checks });
 });
 
-// A small persistence demo: record visits in Postgres + bump a Valkey counter
 app.post('/visit', async (req, res) => {
   if (!pool || !redis) {
     return res.status(503).json({ error: 'databases not configured' });
