@@ -7,18 +7,13 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
+// DigitalOcean-managed DB URIs carry sslmode=require, which node-postgres treats
+// as verify-full and fails on the CA chain. We strip it and supply our own SSL.
 function sanitizeUri(uri) {
   if (!uri) return null;
   const u = new URL(uri);
   u.searchParams.delete('sslmode');
   return u.toString();
-}
-
-// Enumerate all env var KEYS that look like DB/connection config (no values).
-function dbEnvKeys() {
-  return Object.keys(process.env)
-    .filter((k) => /DATABASE|DB|POSTGRES|REDIS|VALKEY|URL|HOST|PORT|USER|PASS/i.test(k))
-    .sort();
 }
 
 let pool = null;
@@ -43,8 +38,6 @@ if (process.env.REDIS_URL) {
 app.get('/', async (req, res) => {
   res.json({ status: 'ok', service: 'my-app', time: new Date().toISOString() });
 });
-
-app.get('/env', (req, res) => res.json({ keys: dbEnvKeys() }));
 
 app.get('/health', async (req, res) => {
   const checks = { postgres: 'not-configured', valkey: 'not-configured' };
