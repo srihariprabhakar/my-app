@@ -1,0 +1,173 @@
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>DigitalOcean Application Stack — Customer Recommendations</title>
+<style>
+body { font-family: 'Segoe UI', Arial, sans-serif; color:#1a1a1a; line-height:1.55; max-width:860px; margin:0 auto; padding:40px; }
+h1 { color:#0069ff; border-bottom:3px solid #0069ff; padding-bottom:8px; font-size:28px;}
+h2 { color:#0b3d91; margin-top:32px; font-size:20px; border-bottom:1px solid #ccc; padding-bottom:4px;}
+h3,h4 { color:#0b3d91; }
+table { border-collapse:collapse; width:100%; margin:16px 0; font-size:14px;}
+th,td { border:1px solid #d0d7de; padding:8px 10px; text-align:left; vertical-align:top;}
+th { background:#f0f5ff; color:#0b3d91; }
+code { background:#f6f8fa; padding:2px 5px; border-radius:4px; font-family:Consolas,monospace; font-size:13px;}
+pre { background:#f6f8fa; padding:12px; border-radius:6px; overflow-x:auto;}
+pre code { background:none; padding:0; }
+blockquote { border-left:4px solid #0069ff; margin:16px 0; padding:4px 16px; color:#555; background:#f8faff;}
+</style></head><body><h1>DigitalOcean Application Stack — Customer Recommendations Report</h1>
+<p><strong>Prepared:</strong> 2026-09-29
+<strong>Account:</strong> sprabhakar@digitalocean.com (Personal team)</p>
+<hr />
+<h2>1. What Was Built</h2>
+<p>A complete, working reference implementation deployed on DigitalOcean, connecting a web
+application to two managed databases.</p>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Resource</th>
+<th>Region</th>
+<th>Tier</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Web application</td>
+<td><code>my-app</code> (App Platform)</td>
+<td>nyc</td>
+<td><code>basic-xxs</code></td>
+</tr>
+<tr>
+<td>Relational database</td>
+<td><code>my-app-pg</code> (PostgreSQL 18)</td>
+<td>nyc1</td>
+<td><code>db-s-1vcpu-1gb</code></td>
+</tr>
+<tr>
+<td>Cache / session store</td>
+<td><code>my-app-valkey</code> (Valkey 8)</td>
+<td>nyc1</td>
+<td><code>db-s-1vcpu-1gb</code></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Live URL:</strong> https://my-app-2x7kf.ondigitalocean.app</li>
+<li><strong>Source code:</strong> https://github.com/srihariprabhakar/my-app</li>
+<li><strong>Stack:</strong> Node.js (Express), PostgreSQL, Valkey (Redis-compatible)</li>
+</ul>
+<h3>Verified end-to-end</h3>
+<ul>
+<li><code>GET /health</code> → <code>{"checks":{"postgres":"ok","valkey":"ok"}}</code></li>
+<li><code>POST /visit</code> → writes a record to PostgreSQL and increments a Valkey counter</li>
+<li>App Platform reports the web component as <code>HEALTHY</code></li>
+</ul>
+<h3>Application endpoints</h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code>/</code></td>
+<td>Liveness check</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/health</code></td>
+<td>Verifies both database connections</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/visit</code></td>
+<td>Persists a note to Postgres + bumps Valkey counter</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>2. Cost Estimate</h2>
+<p>Approximate monthly list prices for this exact configuration:</p>
+<table>
+<thead>
+<tr>
+<th>Resource</th>
+<th>Tier</th>
+<th>Est. USD / month</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>App Platform service</td>
+<td><code>basic-xxs</code> (1 instance)</td>
+<td>~$5</td>
+</tr>
+<tr>
+<td>Managed PostgreSQL</td>
+<td><code>db-s-1vcpu-1gb</code></td>
+<td>~$15</td>
+</tr>
+<tr>
+<td>Managed Valkey</td>
+<td><code>db-s-1vcpu-1gb</code></td>
+<td>~$15</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td></td>
+<td><strong>~$35 / month</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Build costs:</strong> Negligible. Each deployment builds in ~11–13 billable seconds, costing a
+fraction of a cent. Only the running resources (the app instance plus two databases)
+generate steady monthly billing.</p>
+<blockquote>
+<p>Note: Figures are approximate U.S. list prices. Confirm exact engine/version pricing in
+the DigitalOcean billing dashboard, as database node pricing can vary slightly by engine
+and version.</p>
+</blockquote>
+<hr />
+<h2>3. Scaling Recommendations</h2>
+<ul>
+<li><strong>Vertical first, then horizontal.</strong> Increase <code>instance_size_slug</code> (e.g. <code>basic-xxs</code> →
+  <code>basic-xs</code> → <code>basic-s</code>) before adding replicas; the database tier is usually the
+  bottleneck under load.</li>
+<li><strong>Scale the app out</strong> when CPU-bound: raise <code>instance_count</code> from 1 to 2+ — App Platform
+  load-balances automatically (up to 250 instances).</li>
+<li><strong>Scale the database up</strong> (e.g. <code>db-s-2vcpu-4gb</code> or a <code>gd-</code> size) before considering read
+  replicas or high-availability tiers.</li>
+<li><strong>Add connection pooling</strong> (PgBouncer or <code>pg</code> pool config) as concurrency grows; stay
+  within the managed cluster's connection limits.</li>
+<li><strong>Enable autoscaling</strong> for variable traffic; downscale back to the smallest tiers when
+  idle to control cost.</li>
+</ul>
+<hr />
+<h2>4. Reliability Assessment</h2>
+<p>This is a <strong>solid, reliable foundation</strong> for small-to-medium production workloads.</p>
+<p><strong>Strengths</strong></p>
+<ul>
+<li>Managed databases provide automated backups, patching, snapshots, and role management.</li>
+<li>App Platform provides zero-downtime deploys, automatic HTTPS/TLS, health checks, crash
+  restarts, and a default load balancer.</li>
+<li>All three resources share the same region (<code>nyc</code> / <code>nyc1</code>), keeping app↔database latency low.</li>
+</ul>
+<p><strong>Considerations for production hardening</strong></p>
+<ul>
+<li>Databases are currently <strong>single-node</strong> (<code>num_nodes: 1</code>) with no automatic failover —
+  add a standby node or managed high-availability tier for mission-critical data.</li>
+<li><code>basic-xxs</code> and <code>db-s-1vcpu-1gb</code> are dev-oriented sizes; they will throttle under real
+  load and should be right-sized before launch.</li>
+<li>Add alerting beyond <code>DEPLOYMENT_FAILED</code> (e.g. CPU/memory thresholds) and point the App
+  Platform liveness check at a lightweight endpoint.</li>
+</ul>
+<hr />
+<h2>5. Implementation Details (for technical reviewers)</h2>
+<p><strong>Service wiring:</strong> App Platform injects database connection info via environment
+variables. This deployment explicitly sets <code>DATABASE_URL</code> (PostgreSQL) and <code>REDIS_URL</code>
+(Valkey) as encrypted <code>SECRET</code> env vars.</p>
+<p><strong>Key technical note:</strong> DigitalOcean managed database URIs carry <code>sslmode=require</code>, which
+<code>node-postgres</code> interprets as <code>verify-full</code> and rejects on the CA chain. The app strips
+that parameter and supplies <code>ssl: { rejectUnauthorized: false }</code> for a stable connection.</p></body></html>
